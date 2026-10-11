@@ -29,7 +29,8 @@ final class EligiblePaymentMethodsValidator extends ConstraintValidator
             throw new UnexpectedTypeException($constraint, EligiblePaymentMethods::class);
         }
 
-        $order = $value instanceof CompleteOrder ? $this->orderRepository->findOneByTokenValue($value->orderTokenValue) : $value;
+        // findOneByTokenValue() excludes carts.
+        $order = $value instanceof CompleteOrder ? $this->orderRepository->findOneBy(['tokenValue' => $value->orderTokenValue]) : $value;
         if (!$order instanceof OrderInterface) {
             return;
         }

@@ -7,6 +7,7 @@ namespace Tmonier\SyliusOrderHoldPlugin\Validator;
 use Sylius\Bundle\ApiBundle\Command\Payment\AddPaymentRequest;
 use Sylius\Bundle\ApiBundle\Command\Payment\UpdatePaymentRequest;
 use Sylius\Component\Core\Model\OrderInterface;
+use Sylius\Component\Core\Model\PaymentInterface;
 use Sylius\Component\Order\Repository\OrderRepositoryInterface;
 use Sylius\Component\Payment\Model\PaymentRequestInterface;
 use Sylius\Component\Payment\Repository\PaymentRequestRepositoryInterface;
@@ -35,8 +36,8 @@ final class PaymentEntryAllowedValidator extends ConstraintValidator
         }
 
         $order = match (true) {
-            $value instanceof AddPaymentRequest => $this->orderRepository->findOneByTokenValue($value->orderTokenValue),
-            $value instanceof UpdatePaymentRequest => $this->paymentRequestRepository->find($value->hash)?->getPayment()->getOrder(),
+            $value instanceof AddPaymentRequest => $this->orderRepository->findOneBy(['tokenValue' => $value->orderTokenValue]),
+            $value instanceof UpdatePaymentRequest => $this->orderOfPaymentRequest($value->hash),
             default => null,
         };
         if (!$order instanceof OrderInterface) {
@@ -47,5 +48,12 @@ final class PaymentEntryAllowedValidator extends ConstraintValidator
         if (null !== $block) {
             $this->context->buildViolation($block->getMessage(), $block->getParameters())->addViolation();
         }
+    }
+
+    private function orderOfPaymentRequest(string $hash): ?OrderInterface
+    {
+        $payment = $this->paymentRequestRepository->find($hash)?->getPayment();
+
+        return $payment instanceof PaymentInterface ? $payment->getOrder() : null;
     }
 }

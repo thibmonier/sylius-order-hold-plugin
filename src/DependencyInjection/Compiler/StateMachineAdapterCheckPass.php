@@ -9,7 +9,7 @@ use Sylius\Component\Order\OrderTransitions;
 use Sylius\Component\Payment\PaymentTransitions;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\DependencyInjection\Exception\InvalidConfigurationException;
+use Symfony\Component\DependencyInjection\Exception\LogicException;
 
 /**
  * The order-hold plugins listen to Symfony Workflow events of the checkout, order and payment
@@ -47,7 +47,7 @@ final class StateMachineAdapterCheckPass implements CompilerPassInterface
         ));
 
         if ([] !== $winzouGraphs) {
-            throw new InvalidConfigurationException(sprintf(
+            throw new LogicException(sprintf(
                 'tmonier/sylius-order-hold-plugin requires the Symfony Workflow state machine adapter for the "%s" graph(s), which are mapped to winzou (sylius_state_machine_abstraction.graphs_to_adapters_mapping). Map them to "symfony_workflow", or set tmonier_sylius_order_hold.check_state_machine_adapters to false if no installed plugin relies on workflow events.',
                 implode('", "', $winzouGraphs),
             ));
