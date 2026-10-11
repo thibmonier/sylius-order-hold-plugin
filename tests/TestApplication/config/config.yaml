@@ -1,0 +1,11 @@
+imports:
+    - { resource: "services.php" }
+
+# Small batches so that the tests go through several pages of unpaid orders.
+tmonier_sylius_order_hold:
+    unpaid_orders:
+        batch_size: 2
+
+twig:
+    paths:
+        '%kernel.project_dir%/../../../tests/TestApplication/templates': ~

@@ -1,0 +1,11 @@
+tmonier_order_hold:
+    payment_method:
+        ineligible:
+            restricted: 'De betaalmethode %paymentMethodName% is niet beschikbaar voor deze bestelling.'
+            awaiting_approval: 'De betaalmethode %paymentMethodName% kan niet worden gebruikt zolang de bestelling op goedkeuring wacht.'
+            credit_limit_exceeded: 'Het besteltotaal overschrijdt het beschikbare krediet voor de betaalmethode %paymentMethodName%.'
+            credit_hold: 'De betaalmethode %paymentMethodName% is niet beschikbaar: het account is geblokkeerd.'
+            overdue: 'De betaalmethode %paymentMethodName% is niet beschikbaar zolang er facturen vervallen zijn.'
+            other: 'De betaalmethode %paymentMethodName% kan niet worden gebruikt voor deze bestelling.'
+    payment_entry:
+        blocked: 'Deze bestelling kan op dit moment niet worden betaald.'

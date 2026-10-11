@@ -1,0 +1,11 @@
+tmonier_order_hold:
+    payment_method:
+        ineligible:
+            restricted: 'El método de pago %paymentMethodName% no está disponible para este pedido.'
+            awaiting_approval: 'El método de pago %paymentMethodName% no se puede usar mientras el pedido espera una aprobación.'
+            credit_limit_exceeded: 'El total del pedido supera el crédito disponible para el método de pago %paymentMethodName%.'
+            credit_hold: 'El método de pago %paymentMethodName% no está disponible: la cuenta está bloqueada.'
+            overdue: 'El método de pago %paymentMethodName% no está disponible mientras haya facturas vencidas.'
+            other: 'El método de pago %paymentMethodName% no se puede usar para este pedido.'
+    payment_entry:
+        blocked: 'Este pedido no se puede pagar por el momento.'

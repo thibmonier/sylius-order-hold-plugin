@@ -1,0 +1,3 @@
+tmonier_order_hold:
+    payment_entry:
+        blocked: 'Otrzymaliśmy Twoje zamówienie. Obecnie nie można go opłacić; powiadomimy Cię, gdy płatność będzie możliwa.'

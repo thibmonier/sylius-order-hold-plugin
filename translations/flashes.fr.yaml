@@ -1,0 +1,3 @@
+tmonier_order_hold:
+    payment_entry:
+        blocked: "Votre commande a bien été reçue. Elle ne peut pas être payée pour le moment ; vous serez prévenu dès que le paiement sera possible."

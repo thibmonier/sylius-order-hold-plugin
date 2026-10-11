@@ -1,0 +1,3 @@
+tmonier_order_hold:
+    payment_entry:
+        blocked: 'Uw bestelling is ontvangen. Ze kan op dit moment niet worden betaald; u krijgt bericht zodra betalen mogelijk is.'
