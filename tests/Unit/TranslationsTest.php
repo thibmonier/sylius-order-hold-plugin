@@ -7,6 +7,7 @@ namespace Tests\Tmonier\SyliusOrderHoldPlugin\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
+use Tmonier\SyliusOrderHoldPlugin\EventListener\PaymentEntryBlockingListener;
 use Tmonier\SyliusOrderHoldPlugin\PaymentEntry\PaymentEntryBlock;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\IneligibilityReason;
 
@@ -53,6 +54,7 @@ final class TranslationsTest extends TestCase
         }
         self::assertArrayHasKey(PaymentEntryBlock::DEFAULT_MESSAGE, $validators);
         self::assertArrayHasKey(PaymentEntryBlock::DEFAULT_MESSAGE, $flashes);
+        self::assertArrayHasKey(PaymentEntryBlockingListener::INELIGIBLE_METHOD_FLASH, $flashes);
         self::assertCount(count(IneligibilityReason::cases()) + 1, $validators);
     }
 

@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Tmonier\SyliusOrderHoldPlugin\Functional;
 
+use Payum\Core\Payum;
+use Sylius\Abstraction\StateMachine\StateMachineInterface;
 use Sylius\Component\Core\Model\CustomerInterface;
+use Sylius\Component\Core\Model\PaymentInterface;
 use Sylius\Component\Core\Model\ShopUserInterface;
+use Sylius\Component\Payment\Factory\PaymentRequestFactoryInterface;
+use Sylius\Component\Payment\Model\PaymentRequestInterface;
+use Sylius\Component\Payment\PaymentTransitions;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\IneligibilityReason;
@@ -105,6 +111,78 @@ final class ShopOrderHoldTest extends WebTestCase
         $this->client->followRedirects();
         $this->client->followRedirect();
         self::assertStringNotContainsString('It cannot be paid for the moment', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testThePayRouteSendsBackToTheOrderPageWhenTheMethodWasRefusedSinceCheckout(): void
+    {
+        $refused = $this->paymentMethod('Trade credit');
+        $order = $this->order('completed', $refused);
+        $this->holds()->refuseMethod($refused);
+
+        $this->client->request('GET', sprintf('/%s/order/%s/pay', $this->localeCode(), (string) $order->getTokenValue()));
+
+        self::assertResponseRedirects(sprintf('/%s/order/%s', $this->localeCode(), (string) $order->getTokenValue()));
+        $this->client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            sprintf('The payment method %s is no longer available for this order.', (string) $refused->getName()),
+            (string) $this->client->getResponse()->getContent(),
+        );
+    }
+
+    public function testAPaymentRequestCreatedBeforeTheBlockCannotBePaid(): void
+    {
+        $method = $this->paymentMethod('Bank transfer');
+        $order = $this->order('completed', $method);
+        $payment = $order->getLastPayment(PaymentInterface::STATE_NEW);
+        self::assertNotNull($payment);
+        /** @var PaymentRequestFactoryInterface<PaymentRequestInterface> $factory */
+        $factory = $this->service('sylius.factory.payment_request');
+        $paymentRequest = $factory->create($payment, $method);
+        $this->entityManager()->persist($paymentRequest);
+        $this->entityManager()->flush();
+        $this->holds()->blockPaymentEntry($order);
+
+        $this->client->request('GET', sprintf('/%s/payment-request/pay/%s', $this->localeCode(), (string) $paymentRequest->getId()));
+
+        self::assertResponseRedirects(sprintf('/%s/order/thank-you', $this->localeCode()));
+    }
+
+    public function testAPayumTokenCreatedBeforeTheBlockCannotBeUsed(): void
+    {
+        $method = $this->paymentMethod('Bank transfer');
+        $order = $this->order('completed', $method);
+        $payment = $order->getLastPayment(PaymentInterface::STATE_NEW);
+        self::assertNotNull($payment);
+        $payum = $this->service('payum');
+        self::assertInstanceOf(Payum::class, $payum);
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        $this->entityManager()->flush();
+        $this->holds()->blockPaymentEntry($order);
+
+        $this->client->request('GET', (string) parse_url($token->getTargetUrl(), \PHP_URL_PATH));
+
+        self::assertResponseRedirects(sprintf('/%s/order/thank-you', $this->localeCode()));
+    }
+
+    public function testThePaymentCreatedAfterAFailedOneDoesNotKeepARefusedMethod(): void
+    {
+        $refused = $this->paymentMethod('Trade credit');
+        $this->paymentMethod('Bank transfer');
+        $order = $this->order('completed', $refused);
+        $this->holds()->refuseMethod($refused);
+        $payment = $order->getLastPayment(PaymentInterface::STATE_NEW);
+        self::assertNotNull($payment);
+
+        /** @var StateMachineInterface $stateMachine */
+        $stateMachine = $this->service('sylius_abstraction.state_machine');
+        $stateMachine->apply($payment, PaymentTransitions::GRAPH, PaymentTransitions::TRANSITION_FAIL);
+        $this->entityManager()->flush();
+
+        $newPayment = $order->getLastPayment(PaymentInterface::STATE_NEW);
+        self::assertNotNull($newPayment);
+        self::assertNotSame($payment, $newPayment);
+        self::assertNotSame($refused, $newPayment->getMethod());
     }
 
     private function login(CustomerInterface $customer): void

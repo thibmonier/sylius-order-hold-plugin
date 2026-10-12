@@ -30,22 +30,27 @@ checker is registered (see `TestOrderHolds`).
 
 - `config/services.php`: the only place where Sylius services are decorated
   (`sylius.updater.unpaid_orders_state`, `sylius.resolver.payment_methods`,
-  `sylius.resolver.payment_method.default`, `sylius_api.changer.payment_method`).
+  `sylius.resolver.payment_method.default`, `sylius.provider.payment.order`,
+  `sylius_api.changer.payment_method`).
   `TmonierSyliusOrderHoldExtensionTest` asserts that list.
 - `UnpaidOrder/`: `HoldAwareUnpaidOrdersStateUpdater` (keyset pagination, never re-reads an
-  order), `UnpaidOrderHoldResolver` (indefinite hold wins, else latest date), exclusion and
+  order, flush per cancellation, `\Throwable` → log + clear + next batch, parameters prefixed
+  `tmonier_oh_`, respects a `findOrdersUnpaidSince()` override), `UnpaidOrderHoldResolver` (indefinite hold wins, else latest date), exclusion and
   query-extension contracts.
-- `PaymentMethod/`: eligibility contract + `IneligibilityReason`, composite checker, the three
-  decorators.
+- `PaymentMethod/`: eligibility contract + `IneligibilityReason`, composite checker, the four
+  decorators (composite resolver, default resolver, order payment provider, API changer).
 - `PaymentEntry/` + `EventListener/PaymentEntryBlockingListener` (kernel.request on
-  `sylius_shop_order_pay`; the pay response provider interface differs between 2.2 and 2.3).
+  `sylius_shop_order_pay`, `sylius_shop_payment_request_pay` and the Payum capture / authorize
+  routes; the pay response provider interface differs between 2.2 and 2.3): blocked → thank-you,
+  refused method → order page.
 - `Validator/` + `config/validation/*.xml`: `EligiblePaymentMethods` (shop Order and API
-  CompleteOrder, group `sylius_checkout_complete`), `PaymentEntryAllowed` (API
-  Add/UpdatePaymentRequest, group `sylius`). Use `findOneBy(['tokenValue' => ...])`:
+  CompleteOrder, group `sylius_checkout_complete`), `PaymentEntryAllowed` and
+  `EligiblePaymentRequestMethod` (API Add/UpdatePaymentRequest, group `sylius`). Use `findOneBy(['tokenValue' => ...])`:
   `findOneByTokenValue()` excludes carts.
 - `AccountOwner/`: owner resolver (customer by default, replaced by decoration).
-- `DependencyInjection/Compiler/StateMachineAdapterCheckPass`: refuses winzou for the
-  checkout, order and payment graphs.
+- `DependencyInjection/Compiler/StateMachineAdapterCheckPass` + `StateMachine/StateMachineAdapterChecker`:
+  refuse winzou for the checkout, order and payment graphs (compile time, plus a runtime
+  listener when the adapters come from env vars, as in the test application).
 - Test double: `tests/TestApplication/src/OrderHold/TestOrderHolds` (public service
   `tmonier_order_hold.test.order_holds`) implements the three tagged contracts; tests drive it.
   `tests/Functional/OrderHoldTestTrait` builds carts and orders through the real checkout

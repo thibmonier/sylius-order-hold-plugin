@@ -64,6 +64,26 @@ branch on GitHub (2026-10-11).
 | Owner | `AccountOwnerResolverInterface` (`tmonier_order_hold.resolver.account_owner`), customer by default, replaced by decoration (one owner model per shop), returns an `AccountOwner` value (type, identifier, subject). |
 | Winzou | Compiler pass: the container build fails when `sylius_order_checkout`, `sylius_order` or `sylius_payment` resolves to `winzou_state_machine` (mapping or default adapter); can be disabled. |
 
+### Review fixes (2026-10-12)
+
+- The core `AddPaymentRequestHandler` loads any method by code: `EligiblePaymentRequestMethod`
+  checks the method of `AddPaymentRequest` (payment via `findOneByOrderToken`) and of the
+  payment request of `UpdatePaymentRequest`.
+- `OrderPaymentProvider::provideOrderPayment()` overwrites the default resolver's choice with
+  the method of the last cancelled / failed payment: `sylius.provider.payment.order` is decorated
+  and replaces a refused method by the eligible default (kept when none is eligible).
+- The payment entry listener also covers `sylius_shop_payment_request_pay` and the Payum
+  capture / authorize routes (token → payment through the Payum storages, token untouched), and
+  checks the eligibility of the payment (or payment request) method: refused → order page.
+- Cron: `\Throwable` per order (e.g. `NotEnoughUnitsOnHoldException` from the inventory release
+  on cancel), each cancellation flushed on its own, entity manager cleared after a failure, next
+  batch from the failed id; rethrown only when the entity manager is closed.
+- An override of `findOrdersUnpaidSince()` (declaring class other than the core repository)
+  restricts the candidates (`o.id IN (...)`); base parameters prefixed `tmonier_oh_` and checked
+  after each query extension.
+- Winzou check: env placeholders resolved at build time when possible, runtime listener
+  (`kernel.request`, `console.command`) whenever env vars are involved.
+
 Extension points are tagged and autoconfigured; the aggregates (`Composite*`) are not tagged
 (explicit service definitions). Refusals carry an `IneligibilityReason` (`restricted`,
 `awaiting_approval`, `credit_limit_exceeded`, `credit_hold`, `overdue`, `other`), a message

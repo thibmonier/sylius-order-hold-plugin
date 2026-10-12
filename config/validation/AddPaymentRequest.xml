@@ -7,5 +7,10 @@
                 <value>sylius</value>
             </option>
         </constraint>
+        <constraint name="Tmonier\SyliusOrderHoldPlugin\Validator\EligiblePaymentRequestMethod">
+            <option name="groups">
+                <value>sylius</value>
+            </option>
+        </constraint>
     </class>
 </constraint-mapping>

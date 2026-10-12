@@ -108,6 +108,25 @@ final class ApiOrderHoldTest extends WebTestCase
         self::assertResponseStatusCodeSame(201);
     }
 
+    public function testAPaymentRequestCannotUseARefusedMethod(): void
+    {
+        $method = $this->paymentMethod('Bank transfer');
+        $refused = $this->paymentMethod('Trade credit');
+        $order = $this->order('completed', $method);
+        $this->holds()->refuseMethod($refused, IneligibilityReason::CreditHold);
+
+        $data = $this->json('POST', sprintf('/api/v2/shop/orders/%s/payment-requests', (string) $order->getTokenValue()), [
+            'paymentId' => $this->paymentId($order),
+            'paymentMethodCode' => $refused->getCode(),
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString(
+            sprintf('The payment method %s is not available: the account is on credit hold.', (string) $refused->getName()),
+            (string) json_encode($data),
+        );
+    }
+
     private function paymentId(OrderInterface $order): string
     {
         $payment = $order->getLastPayment(PaymentInterface::STATE_NEW) ?? $order->getLastPayment();

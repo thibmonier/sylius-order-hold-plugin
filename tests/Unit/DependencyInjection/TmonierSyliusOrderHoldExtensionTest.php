@@ -45,6 +45,7 @@ final class TmonierSyliusOrderHoldExtensionTest extends TestCase
         sort($decorated);
 
         self::assertSame([
+            'sylius.provider.payment.order',
             'sylius.resolver.payment_method.default',
             'sylius.resolver.payment_methods',
             'sylius.updater.unpaid_orders_state',

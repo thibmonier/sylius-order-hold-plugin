@@ -14,12 +14,14 @@ use Tmonier\SyliusOrderHoldPlugin\PaymentEntry\PaymentEntryBlockerInterface;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\CompositePaymentMethodEligibilityChecker;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\EligibilityAwarePaymentMethodChanger;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\EligibleDefaultPaymentMethodResolver;
+use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\EligibleOrderPaymentProvider;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\EligiblePaymentMethodsResolver;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodEligibilityCheckerInterface;
 use Tmonier\SyliusOrderHoldPlugin\UnpaidOrder\HoldAwareUnpaidOrdersStateUpdater;
 use Tmonier\SyliusOrderHoldPlugin\UnpaidOrder\UnpaidOrderHoldResolver;
 use Tmonier\SyliusOrderHoldPlugin\UnpaidOrder\UnpaidOrderHoldResolverInterface;
 use Tmonier\SyliusOrderHoldPlugin\Validator\EligiblePaymentMethodsValidator;
+use Tmonier\SyliusOrderHoldPlugin\Validator\EligiblePaymentRequestMethodValidator;
 use Tmonier\SyliusOrderHoldPlugin\Validator\PaymentEntryAllowedValidator;
 
 // Every Sylius service is decorated exactly once, here: plugins that hold orders register tagged
@@ -40,6 +42,7 @@ return static function (ContainerConfigurator $container): void {
         ->decorate('sylius.updater.unpaid_orders_state')
         ->args([
             service('sylius.manager.order'),
+            service('sylius.repository.order'),
             param('sylius.model.order.class'),
             service('sylius_abstraction.state_machine'),
             service('tmonier_order_hold.resolver.unpaid_order_hold'),
@@ -80,6 +83,17 @@ return static function (ContainerConfigurator $container): void {
         ])
     ;
 
+    // Payment created after a failed or cancelled one: the core copies the previous method.
+    $services
+        ->set('tmonier_order_hold.provider.order_payment', EligibleOrderPaymentProvider::class)
+        ->decorate('sylius.provider.payment.order')
+        ->args([
+            service('.inner'),
+            service('sylius.resolver.payment_method.default'),
+            service('tmonier_order_hold.checker.payment_method_eligibility'),
+        ])
+    ;
+
     // Payment method change of a placed order (shop API); dropped when the API bundle is disabled.
     $services
         ->set('tmonier_order_hold.changer.payment_method', EligibilityAwarePaymentMethodChanger::class)
@@ -101,6 +115,17 @@ return static function (ContainerConfigurator $container): void {
         ->tag('validator.constraint_validator', ['alias' => 'tmonier_order_hold.validator.eligible_payment_methods'])
     ;
 
+    $services
+        ->set('tmonier_order_hold.validator.eligible_payment_request_method', EligiblePaymentRequestMethodValidator::class)
+        ->args([
+            service('sylius.repository.payment'),
+            service('sylius.repository.payment_method'),
+            service('sylius.repository.payment_request'),
+            service('tmonier_order_hold.checker.payment_method_eligibility'),
+        ])
+        ->tag('validator.constraint_validator', ['alias' => 'tmonier_order_hold.validator.eligible_payment_request_method'])
+    ;
+
     // Payment entry
 
     $services
@@ -113,8 +138,11 @@ return static function (ContainerConfigurator $container): void {
         ->set('tmonier_order_hold.listener.payment_entry_blocking', PaymentEntryBlockingListener::class)
         ->args([
             service('sylius.repository.order'),
+            service('sylius.repository.payment_request'),
             service('tmonier_order_hold.blocker.payment_entry'),
+            service('tmonier_order_hold.checker.payment_method_eligibility'),
             service('router'),
+            service('payum')->nullOnInvalid(),
         ])
         // After the router (32), the locale listeners (16) and the firewall (8).
         ->tag('kernel.event_listener', ['event' => 'kernel.request', 'priority' => 0])

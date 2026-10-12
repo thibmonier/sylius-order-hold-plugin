@@ -22,12 +22,12 @@ nothing visible, except that `sylius:cancel-unpaid-orders` can no longer loop fo
 
 | Need | What the package does |
 |---|---|
-| Orders on credit terms or awaiting approval must not be cancelled after 5 days | `UnpaidOrderCancellationExclusionInterface`: return a hold, **indefinite** or **since a date** (the expiration period then runs from that date, e.g. the approval date). One decorator of `sylius.updater.unpaid_orders_state` reads the unpaid orders by increasing id, so held orders and refused cancellations are never read twice: the command always terminates. |
-| Exclude held orders in SQL rather than in PHP | `UnpaidOrderCandidateQueryExtensionInterface` adds conditions to the candidate query (e.g. `NOT EXISTS` on the plugin's table). |
-| Offer a payment method to some customers only | `PaymentMethodEligibilityCheckerInterface` returns a refusal with a reason (`IneligibilityReason` enum) and a translatable message. Applied to the composite `sylius.resolver.payment_methods` (shop checkout and order page, API choices and validators), to `sylius.resolver.payment_method.default` (method of the payments created by the order processor), to the API payment method changer (change after checkout), and at checkout completion (shop order and API `CompleteOrder`), with a readable message when a method became ineligible after it was selected. |
-| Do not let the customer pay before approval | `PaymentEntryBlockerInterface`: the shop `sylius_shop_order_pay` route (reached after checkout and from the order page) redirects to the thank-you page with a flash message; the shop API refuses to create or update payment requests of the order (422). |
+| Orders on credit terms or awaiting approval must not be cancelled after 5 days | `UnpaidOrderCancellationExclusionInterface`: return a hold, **indefinite** or **since a date** (the expiration period then runs from that date, e.g. the approval date). One decorator of `sylius.updater.unpaid_orders_state` reads the unpaid orders by increasing id, so held orders and refused or failing cancellations are never read twice: the command always terminates. Each cancellation is flushed on its own; one that throws (e.g. not enough units on hold) is logged and skipped. An application override of `OrderRepository::findOrdersUnpaidSince()` is respected (its result restricts the candidates). |
+| Exclude held orders in SQL rather than in PHP | `UnpaidOrderCandidateQueryExtensionInterface` adds conditions to the candidate query (e.g. `NOT EXISTS` on the plugin's table). The base parameters are prefixed `tmonier_oh_`: an extension that overwrites one makes the command fail instead of silently changing the selection. |
+| Offer a payment method to some customers only | `PaymentMethodEligibilityCheckerInterface` returns a refusal with a reason (`IneligibilityReason` enum) and a translatable message. Applied to the composite `sylius.resolver.payment_methods` (shop checkout and order page, API choices and validators), to `sylius.resolver.payment_method.default` (method of the payments created by the order processor), to `sylius.provider.payment.order` (a payment created after a failed or cancelled one copies its method: a refused one is replaced by the eligible default), to the API payment method changer (change after checkout), to shop API payment requests (`AddPaymentRequest` / `UpdatePaymentRequest`, the core accepts any method code), at checkout completion (shop order and API `CompleteOrder`), and on the shop pay routes (a method refused since it was chosen sends the customer back to the order page to choose another one). |
+| Do not let the customer pay before approval | `PaymentEntryBlockerInterface`: the shop routes that start a payment (`sylius_shop_order_pay`, reached after checkout and from the order page; `sylius_shop_payment_request_pay`; the Payum `payum_capture_do`, `payum_capture_do_session` and `payum_authorize_do` routes, for tokens created before the block) redirect to the thank-you page with a flash message; the shop API refuses to create or update payment requests of the order (422). |
 | Know who an order is accountable to | `AccountOwnerResolverInterface`: the customer by default; a company plugin decorates `tmonier_order_hold.resolver.account_owner`. |
-| Fail early on an unsupported setup | A compiler pass stops the container build when the checkout, order or payment graph runs on winzou: the hold plugins listen to Symfony Workflow events. |
+| Fail early on an unsupported setup | A compiler pass stops the container build when the checkout, order or payment graph runs on winzou: the hold plugins listen to Symfony Workflow events. Adapters set through environment variables are checked with their build-time value and again at runtime (first request or console command). |
 
 Also included: default messages in English, French, German, Spanish, Italian, Dutch and Polish;
 MySQL, MariaDB and PostgreSQL support (Doctrine query builder only).
@@ -141,6 +141,7 @@ Rules:
   returns the methods of the first resolver that supports the payment.
 - **Do not decorate** the services listed below in your plugin; implement a checker instead.
 - Checkers are called often (every payment method list): keep them cheap, cache per request.
+- Query extensions must not use parameter names starting with `tmonier_oh_`.
 - Messages are translation keys: `validators` domain for refusals and API blocks, `flashes`
   domain for the shop block. Without a message, the reason's default message is used
   (`tmonier_order_hold.payment_method.ineligible.<reason>`, parameter `%paymentMethodName%`).
@@ -152,6 +153,7 @@ Decorated services (each exactly once):
 | `sylius.updater.unpaid_orders_state` | `tmonier_order_hold.updater.unpaid_orders_state` |
 | `sylius.resolver.payment_methods` (composite) | `tmonier_order_hold.resolver.payment_methods` |
 | `sylius.resolver.payment_method.default` | `tmonier_order_hold.resolver.default_payment_method` |
+| `sylius.provider.payment.order` | `tmonier_order_hold.provider.order_payment` |
 | `sylius_api.changer.payment_method` (when the API bundle is enabled) | `tmonier_order_hold.changer.payment_method` |
 
 Aggregates you can inject: `UnpaidOrderHoldResolverInterface` (is an order held? since when?),
@@ -162,7 +164,9 @@ blockers), `AccountOwnerResolverInterface`.
 
 - The unpaid-orders updater replaces the core algorithm (same selection, keyset pagination) and
   does not call the decorated service. Another decoration of
-  `sylius.updater.unpaid_orders_state` applied *before* this one is ignored.
+  `sylius.updater.unpaid_orders_state` applied *before* this one is ignored. A repository that
+  overrides `findOrdersUnpaidSince()` is called once per run without limit (its ids then restrict
+  the paginated query), which loads all its candidates in memory once.
 - Eligibility is checked where Sylius offers, assigns or validates a payment method. Code that
   sets `Payment::setMethod()` directly (custom admin tools, imports) bypasses it.
 - The admin side is untouched: administrators can still change payment methods and complete
@@ -170,7 +174,8 @@ blockers), `AccountOwnerResolverInterface`.
 - A blocked shop pay page redirects to the thank-you page; if the session cannot be written
   (stateless clients), the thank-you page falls back to the homepage as in Sylius.
 - Payment gateways that capture during checkout, before the pay page, are not stopped by the
-  payment entry blocker: use payment method eligibility for them.
+  payment entry blocker: use payment method eligibility for them. Gateway notifications
+  (server-to-server) are never blocked: a payment the gateway already took is recorded.
 
 ## Development
 

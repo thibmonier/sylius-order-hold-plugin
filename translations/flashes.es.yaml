@@ -1,3 +1,5 @@
 tmonier_order_hold:
+    payment_method:
+        ineligible: "El método de pago %paymentMethodName% ya no está disponible para este pedido. Elija otro."
     payment_entry:
         blocked: 'Hemos recibido su pedido. No se puede pagar por el momento; le avisaremos cuando el pago sea posible.'
