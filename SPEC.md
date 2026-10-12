@@ -81,6 +81,11 @@ branch on GitHub (2026-10-11).
 - An override of `findOrdersUnpaidSince()` (declaring class other than the core repository)
   restricts the candidates (`o.id IN (...)`); base parameters prefixed `tmonier_oh_` and checked
   after each query extension.
+- Reverification (2026-10-12): a failure inside the flush closes the entity manager: reset
+  through `ManagerRegistry` and continue after the failed id. Payum capture / authorize URLs are
+  also the browser return URL of offsite gateways: only a payment in state `new` without gateway
+  details is intercepted, and the ineligibility redirect only applies to `new` payments.
+  Redirects use the request locale when the channel offers it, else the channel default locale.
 - Winzou check: env placeholders resolved at build time when possible, runtime listener
   (`kernel.request`, `console.command`) whenever env vars are involved.
 

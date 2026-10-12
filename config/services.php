@@ -50,6 +50,7 @@ return static function (ContainerConfigurator $container): void {
             param('sylius_order.order_expiration_period'),
             service('logger'),
             param('tmonier_order_hold.unpaid_orders.batch_size'),
+            service('doctrine'),
         ])
         ->tag('monolog.logger', ['channel' => 'tmonier_order_hold'])
     ;

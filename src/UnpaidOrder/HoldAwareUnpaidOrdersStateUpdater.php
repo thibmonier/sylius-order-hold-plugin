@@ -7,6 +7,7 @@ namespace Tmonier\SyliusOrderHoldPlugin\UnpaidOrder;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query\Parameter;
 use Doctrine\ORM\QueryBuilder;
+use Doctrine\Persistence\ManagerRegistry;
 use Psr\Log\LoggerInterface;
 use Sylius\Abstraction\StateMachine\StateMachineInterface;
 use Sylius\Bundle\CoreBundle\Doctrine\ORM\OrderRepository as CoreOrderRepository;
@@ -24,7 +25,7 @@ use Sylius\Component\Order\OrderTransitions;
  *   cancellation is refused or fails is never read twice and the command always terminates (the
  *   core updater re-runs the same query until it returns nothing);
  * - each cancellation is flushed on its own; a failing one is logged and skipped, the entity
- *   manager is cleared and the run goes on;
+ *   manager is cleared (reset when the failure closed it) and the run goes on;
  * - held orders are skipped (exclusions) or filtered in SQL (query extensions, whose parameters
  *   must not reuse the `tmonier_oh_` prefix);
  * - a hold can make the expiration period run from a later date than checkout completion;
@@ -41,7 +42,7 @@ final class HoldAwareUnpaidOrdersStateUpdater implements UnpaidOrdersStateUpdate
      * @param iterable<UnpaidOrderCandidateQueryExtensionInterface> $queryExtensions
      */
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
+        private EntityManagerInterface $entityManager,
         private readonly OrderRepositoryInterface $orderRepository,
         private readonly string $orderClass,
         private readonly StateMachineInterface $stateMachine,
@@ -50,6 +51,7 @@ final class HoldAwareUnpaidOrdersStateUpdater implements UnpaidOrdersStateUpdate
         private readonly string $expirationPeriod,
         private readonly LoggerInterface $logger,
         private readonly int $batchSize = 100,
+        private readonly ?ManagerRegistry $managerRegistry = null,
     ) {
     }
 
@@ -191,12 +193,28 @@ final class HoldAwareUnpaidOrdersStateUpdater implements UnpaidOrdersStateUpdate
                 ['exception' => $exception, 'message' => $exception->getMessage()],
             );
             if (!$this->entityManager->isOpen()) {
-                throw $exception;
+                // E.g. a constraint violation during the flush: reset the manager and go on
+                // after this order (the keyset pagination never reads it again).
+                $this->resetEntityManager($exception);
             }
             // Drops the half-applied changes of this order (state, payments, inventory).
             $this->entityManager->clear();
 
             return false;
         }
+    }
+
+    private function resetEntityManager(\Throwable $exception): void
+    {
+        if (null === $this->managerRegistry) {
+            throw $exception;
+        }
+
+        $this->managerRegistry->resetManager();
+        $entityManager = $this->managerRegistry->getManagerForClass($this->orderClass);
+        if (!$entityManager instanceof EntityManagerInterface || !$entityManager->isOpen()) {
+            throw $exception;
+        }
+        $this->entityManager = $entityManager;
     }
 }

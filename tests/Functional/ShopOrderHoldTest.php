@@ -185,6 +185,63 @@ final class ShopOrderHoldTest extends WebTestCase
         self::assertNotSame($refused, $newPayment->getMethod());
     }
 
+    public function testAGatewayReturnIsNeverIntercepted(): void
+    {
+        $method = $this->paymentMethod('Card gateway');
+        $this->paymentMethod('Bank transfer');
+        $order = $this->order('completed', $method);
+        $payment = $order->getLastPayment(PaymentInterface::STATE_NEW);
+        self::assertNotNull($payment);
+        $payum = $this->service('payum');
+        self::assertInstanceOf(Payum::class, $payum);
+        // Offsite gateways send the customer back to the capture URL.
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        /** @var StateMachineInterface $stateMachine */
+        $stateMachine = $this->service('sylius_abstraction.state_machine');
+        $stateMachine->apply($payment, PaymentTransitions::GRAPH, PaymentTransitions::TRANSITION_PROCESS);
+        $this->entityManager()->flush();
+        $this->holds()->refuseMethod($method);
+        $this->holds()->blockPaymentEntry($order);
+
+        $this->client->request('GET', (string) parse_url($token->getTargetUrl(), \PHP_URL_PATH));
+
+        $location = (string) $this->client->getResponse()->headers->get('Location');
+        self::assertStringNotContainsString('/order/' . (string) $order->getTokenValue(), $location);
+        self::assertStringNotContainsString('/order/thank-you', $location);
+    }
+
+    public function testAPayumEntryWithGatewayDetailsIsAReturnAndIsNotIntercepted(): void
+    {
+        $method = $this->paymentMethod('Card gateway');
+        $order = $this->order('completed', $method);
+        $payment = $order->getLastPayment(PaymentInterface::STATE_NEW);
+        self::assertNotNull($payment);
+        $payment->setDetails(['gateway_token' => 'EC-123']);
+        $payum = $this->service('payum');
+        self::assertInstanceOf(Payum::class, $payum);
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        $this->entityManager()->flush();
+        $this->holds()->blockPaymentEntry($order);
+
+        $this->client->request('GET', (string) parse_url($token->getTargetUrl(), \PHP_URL_PATH));
+
+        self::assertStringNotContainsString('/order/thank-you', (string) $this->client->getResponse()->headers->get('Location'));
+    }
+
+    public function testRedirectsUseTheRequestLocaleWhenTheOrderLocaleLeftTheChannel(): void
+    {
+        $order = $this->order('completed', $this->paymentMethod('Bank transfer'));
+        $order->setLocaleCode('xx_XX');
+        $this->entityManager()->flush();
+        $this->holds()->blockPaymentEntry($order);
+
+        $this->client->request('GET', sprintf('/%s/order/%s/pay', $this->localeCode(), (string) $order->getTokenValue()));
+
+        self::assertResponseRedirects(sprintf('/%s/order/thank-you', $this->localeCode()));
+        $this->client->followRedirect();
+        self::assertStringContainsString('It cannot be paid for the moment', (string) $this->client->getResponse()->getContent());
+    }
+
     private function login(CustomerInterface $customer): void
     {
         $user = $customer->getUser();

@@ -7,8 +7,10 @@ namespace Tmonier\SyliusOrderHoldPlugin\EventListener;
 use Payum\Core\Payum;
 use Payum\Core\Security\TokenInterface;
 use Payum\Core\Storage\IdentityInterface;
+use Sylius\Component\Core\Model\ChannelInterface;
 use Sylius\Component\Core\Model\OrderInterface;
 use Sylius\Component\Core\Model\PaymentInterface;
+use Sylius\Component\Locale\Model\LocaleInterface;
 use Sylius\Component\Order\Repository\OrderRepositoryInterface;
 use Sylius\Component\Payment\Model\PaymentMethodInterface;
 use Sylius\Component\Payment\Model\PaymentRequestInterface;
@@ -29,8 +31,10 @@ use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodEligibilityCheckerI
  * 2.3, so the request is intercepted before the controller.
  *
  * - Blocked order: redirect to the thank-you page (like a paid offline order) with a flash.
- * - Payment method refused since it was chosen (or copied from a failed payment): redirect to
- *   the order page, whose form only offers eligible methods.
+ * - Payment method refused since it was chosen (or copied from a failed payment), payment not
+ *   started yet: redirect to the order page, whose form only offers eligible methods.
+ * - Gateway returns (Payum route of a payment already processing, or with gateway details) and
+ *   notifications are never intercepted.
  */
 final class PaymentEntryBlockingListener
 {
@@ -79,15 +83,17 @@ final class PaymentEntryBlockingListener
                 }
             }
 
-            $event->setResponse(new RedirectResponse($this->urlGenerator->generate('sylius_shop_order_thank_you', $this->localeParameters($order))));
+            $event->setResponse(new RedirectResponse($this->urlGenerator->generate('sylius_shop_order_thank_you', $this->localeParameters($request, $order))));
 
             return;
         }
 
         $payment ??= $order->getLastPayment(PaymentInterface::STATE_NEW);
         $paymentMethod ??= $payment?->getMethod();
+        // Only a payment not started yet: a refused method must not strand a payment in progress.
         if (
             !$payment instanceof PaymentInterface ||
+            PaymentInterface::STATE_NEW !== $payment->getState() ||
             !$paymentMethod instanceof PaymentMethodInterface ||
             null === $this->eligibilityChecker->getIneligibility($paymentMethod, $payment)
         ) {
@@ -101,7 +107,7 @@ final class PaymentEntryBlockingListener
 
         $event->setResponse(new RedirectResponse($this->urlGenerator->generate(
             'sylius_shop_order_show',
-            ['tokenValue' => (string) $order->getTokenValue()] + $this->localeParameters($order),
+            ['tokenValue' => (string) $order->getTokenValue()] + $this->localeParameters($request, $order),
         )));
     }
 
@@ -131,8 +137,14 @@ final class PaymentEntryBlockingListener
 
         if (in_array($route, self::PAYUM_ROUTES, true) && null !== $this->payum) {
             $payment = $this->payumPayment($request);
+            // The capture / authorize URL is also the gateway's browser return URL (offsite
+            // gateways): only the first entry is intercepted, never the return of a payment the
+            // gateway already started (state other than new, or gateway details stored).
+            if (!$payment instanceof PaymentInterface || PaymentInterface::STATE_NEW !== $payment->getState() || [] !== $payment->getDetails()) {
+                return [null, null, null];
+            }
 
-            return [$payment?->getOrder(), $payment, null];
+            return [$payment->getOrder(), $payment, null];
         }
 
         return [null, null, null];
@@ -167,10 +179,26 @@ final class PaymentEntryBlockingListener
         return $details instanceof PaymentInterface ? $details : null;
     }
 
-    /** @return array<string, string> */
-    private function localeParameters(OrderInterface $order): array
+    /**
+     * The locale of the request when the channel offers it (Payum routes have none), else the
+     * channel default locale, else the order locale.
+     *
+     * @return array<string, string>
+     */
+    private function localeParameters(Request $request, OrderInterface $order): array
     {
-        $localeCode = $order->getLocaleCode();
+        $channel = $order->getChannel();
+        $channelLocales = $channel instanceof ChannelInterface
+            ? array_map(static fn (LocaleInterface $locale): ?string => $locale->getCode(), $channel->getLocales()->toArray())
+            : [];
+        $requestLocale = $request->attributes->get('_locale');
+
+        $localeCode = match (true) {
+            is_string($requestLocale) && in_array($requestLocale, $channelLocales, true) => $requestLocale,
+            $channel instanceof ChannelInterface && null !== $channel->getDefaultLocale()?->getCode() => $channel->getDefaultLocale()->getCode(),
+            [] === $channelLocales => $order->getLocaleCode(),
+            default => null,
+        };
 
         return null === $localeCode ? [] : ['_locale' => $localeCode];
     }

@@ -136,6 +136,35 @@ final class CancelUnpaidOrdersTest extends KernelTestCase
         }
     }
 
+    public function testAFailureDuringTheFlushResetsTheEntityManagerAndTheRunGoesOn(): void
+    {
+        $before = $this->unpaidOrder('10 days');
+        $failing = $this->unpaidOrder('10 days');
+        $after = [$this->unpaidOrder('10 days'), $this->unpaidOrder('11 days'), $this->unpaidOrder('12 days')];
+        $failingNumber = $failing->getNumber();
+        $duplicateNumber = $before->getNumber();
+        $this->entityManager()->clear();
+
+        $dispatcher = self::getContainer()->get('event_dispatcher');
+        self::assertInstanceOf(EventDispatcherInterface::class, $dispatcher);
+        // Unique constraint violation at flush: the entity manager gets closed.
+        $dispatcher->addListener('workflow.sylius_order.completed.cancel', static function (CompletedEvent $event) use ($failingNumber, $duplicateNumber): void {
+            $order = $event->getSubject();
+            if ($order instanceof OrderInterface && $order->getNumber() === $failingNumber) {
+                $order->setNumber($duplicateNumber);
+            }
+        });
+
+        $this->runCommand();
+
+        $connection = $this->entityManager()->getConnection();
+        self::assertTrue($this->entityManager()->isOpen());
+        self::assertSame('new', $connection->fetchOne('SELECT state FROM sylius_order WHERE id = ?', [$failing->getId()]));
+        foreach ([$before, ...$after] as $order) {
+            self::assertSame('cancelled', $connection->fetchOne('SELECT state FROM sylius_order WHERE id = ?', [$order->getId()]));
+        }
+    }
+
     public function testAnOverrideOfFindOrdersUnpaidSinceRestrictsTheCandidates(): void
     {
         $kept = $this->unpaidOrder('10 days');
