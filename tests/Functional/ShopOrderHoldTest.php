@@ -158,7 +158,7 @@ final class ShopOrderHoldTest extends WebTestCase
         self::assertNotNull($payment);
         $payum = $this->service('payum');
         self::assertInstanceOf(Payum::class, $payum);
-        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay', ['_locale' => $this->localeCode()]);
         $this->entityManager()->flush();
         $this->holds()->blockPaymentEntry($order);
 
@@ -197,7 +197,7 @@ final class ShopOrderHoldTest extends WebTestCase
         $payum = $this->service('payum');
         self::assertInstanceOf(Payum::class, $payum);
         // Offsite gateways send the customer back to the capture URL.
-        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay', ['_locale' => $this->localeCode()]);
         /** @var StateMachineInterface $stateMachine */
         $stateMachine = $this->service('sylius_abstraction.state_machine');
         $stateMachine->apply($payment, PaymentTransitions::GRAPH, PaymentTransitions::TRANSITION_PROCESS);
@@ -221,7 +221,7 @@ final class ShopOrderHoldTest extends WebTestCase
         $payment->setDetails(['gateway_token' => 'EC-123']);
         $payum = $this->service('payum');
         self::assertInstanceOf(Payum::class, $payum);
-        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay', ['_locale' => $this->localeCode()]);
         $this->entityManager()->flush();
         $this->holds()->blockPaymentEntry($order);
 
@@ -265,7 +265,7 @@ final class ShopOrderHoldTest extends WebTestCase
         $payum = $this->service('payum');
         self::assertInstanceOf(Payum::class, $payum);
         // Payum routes have no locale in their path.
-        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay', ['_locale' => $this->localeCode()]);
         $this->entityManager()->flush();
         $this->holds()->blockPaymentEntry($order);
 

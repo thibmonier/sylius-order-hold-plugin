@@ -62,7 +62,7 @@ final class CancelUnpaidOrdersTest extends KernelTestCase
         }
         $expired2 = $this->unpaidOrder('20 days');
 
-        $this->runCommand();
+        $this->runCancelUnpaidOrders();
 
         self::assertSame(OrderInterface::STATE_CANCELLED, $this->reload($expired)->getState());
         self::assertSame(OrderInterface::STATE_CANCELLED, $this->reload($expired2)->getState());
@@ -80,7 +80,7 @@ final class CancelUnpaidOrdersTest extends KernelTestCase
         $approvedLongAgo = $this->unpaidOrder('30 days');
         $this->holds()->hold($approvedLongAgo, new \DateTimeImmutable('-6 days'));
 
-        $this->runCommand();
+        $this->runCancelUnpaidOrders();
 
         self::assertSame(OrderInterface::STATE_NEW, $this->reload($approvedYesterday)->getState());
         self::assertSame(OrderInterface::STATE_CANCELLED, $this->reload($approvedLongAgo)->getState());
@@ -101,7 +101,7 @@ final class CancelUnpaidOrdersTest extends KernelTestCase
             }
         });
 
-        $this->runCommand();
+        $this->runCancelUnpaidOrders();
 
         self::assertSame(OrderInterface::STATE_NEW, $this->reload($guarded)->getState());
         foreach ($others as $order) {
@@ -126,7 +126,7 @@ final class CancelUnpaidOrdersTest extends KernelTestCase
             }
         });
 
-        $this->runCommand();
+        $this->runCancelUnpaidOrders();
 
         self::assertSame(OrderInterface::STATE_NEW, $this->reload($failing)->getState());
         self::assertSame('awaiting_payment', $this->reload($failing)->getPaymentState());
@@ -155,7 +155,7 @@ final class CancelUnpaidOrdersTest extends KernelTestCase
             }
         });
 
-        $this->runCommand();
+        $this->runCancelUnpaidOrders();
 
         $connection = $this->entityManager()->getConnection();
         self::assertTrue($this->entityManager()->isOpen());
@@ -251,7 +251,7 @@ final class CancelUnpaidOrdersTest extends KernelTestCase
         return new HoldAwareUnpaidOrdersStateUpdater($this->entityManager(), $orderRepository, $orderClass, $stateMachine, $holdResolver, $extensions, '5 days', new NullLogger(), 2);
     }
 
-    private function runCommand(): void
+    private function runCancelUnpaidOrders(): void
     {
         $kernel = self::$kernel;
         self::assertNotNull($kernel);
