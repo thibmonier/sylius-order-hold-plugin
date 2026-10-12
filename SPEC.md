@@ -83,9 +83,12 @@ branch on GitHub (2026-10-11).
   after each query extension.
 - Reverification (2026-10-12): a failure inside the flush closes the entity manager: reset
   through `ManagerRegistry` and continue after the failed id. Payum capture / authorize URLs are
-  also the browser return URL of offsite gateways: only a payment in state `new` without gateway
-  details is intercepted, and the ineligibility redirect only applies to `new` payments.
-  Redirects use the request locale when the channel offers it, else the channel default locale.
+  also the browser return URL of offsite gateways: only payments in state `new` are intercepted
+  (the block wins even when gateway details exist, so a token reopened after the block cannot
+  pay; a gateway capturing on browser return will not capture while the order is blocked),
+  payments in processing / authorized / completed and notify routes always pass; the
+  ineligibility redirect only applies to `new` payments. Redirect locale: request locale if the
+  channel offers it, else order locale if the channel offers it, else channel default.
 - Winzou check: env placeholders resolved at build time when possible, runtime listener
   (`kernel.request`, `console.command`) whenever env vars are involved.
 

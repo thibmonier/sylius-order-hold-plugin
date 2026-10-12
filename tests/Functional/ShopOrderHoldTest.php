@@ -9,9 +9,11 @@ use Sylius\Abstraction\StateMachine\StateMachineInterface;
 use Sylius\Component\Core\Model\CustomerInterface;
 use Sylius\Component\Core\Model\PaymentInterface;
 use Sylius\Component\Core\Model\ShopUserInterface;
+use Sylius\Component\Locale\Model\LocaleInterface;
 use Sylius\Component\Payment\Factory\PaymentRequestFactoryInterface;
 use Sylius\Component\Payment\Model\PaymentRequestInterface;
 use Sylius\Component\Payment\PaymentTransitions;
+use Sylius\Resource\Factory\FactoryInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\IneligibilityReason;
@@ -210,7 +212,7 @@ final class ShopOrderHoldTest extends WebTestCase
         self::assertStringNotContainsString('/order/thank-you', $location);
     }
 
-    public function testAPayumEntryWithGatewayDetailsIsAReturnAndIsNotIntercepted(): void
+    public function testAReopenedTokenOfAPaymentStartedBeforeTheBlockIsIntercepted(): void
     {
         $method = $this->paymentMethod('Card gateway');
         $order = $this->order('completed', $method);
@@ -225,7 +227,8 @@ final class ShopOrderHoldTest extends WebTestCase
 
         $this->client->request('GET', (string) parse_url($token->getTargetUrl(), \PHP_URL_PATH));
 
-        self::assertStringNotContainsString('/order/thank-you', (string) $this->client->getResponse()->headers->get('Location'));
+        // The payment is still new: the block wins over the gateway details.
+        self::assertResponseRedirects(sprintf('/%s/order/thank-you', $this->localeCode()));
     }
 
     public function testRedirectsUseTheRequestLocaleWhenTheOrderLocaleLeftTheChannel(): void
@@ -240,6 +243,35 @@ final class ShopOrderHoldTest extends WebTestCase
         self::assertResponseRedirects(sprintf('/%s/order/thank-you', $this->localeCode()));
         $this->client->followRedirect();
         self::assertStringContainsString('It cannot be paid for the moment', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testRedirectsUseTheOrderLocaleWhenTheChannelOffersIt(): void
+    {
+        $channel = $this->channel();
+        $locale = $this->entityManager()->getRepository(LocaleInterface::class)->findOneBy(['code' => 'fr_FR']);
+        if (!$locale instanceof LocaleInterface) {
+            /** @var FactoryInterface<LocaleInterface> $localeFactory */
+            $localeFactory = $this->service('sylius.factory.locale');
+            $locale = $localeFactory->createNew();
+            $locale->setCode('fr_FR');
+            $this->entityManager()->persist($locale);
+        }
+        $channel->addLocale($locale);
+        $method = $this->paymentMethod('Bank transfer');
+        $order = $this->order('completed', $method);
+        $order->setLocaleCode('fr_FR');
+        $payment = $order->getLastPayment(PaymentInterface::STATE_NEW);
+        self::assertNotNull($payment);
+        $payum = $this->service('payum');
+        self::assertInstanceOf(Payum::class, $payum);
+        // Payum routes have no locale in their path.
+        $token = $payum->getTokenFactory()->createCaptureToken((string) $method->getGatewayConfig()?->getGatewayName(), $payment, 'sylius_shop_order_after_pay');
+        $this->entityManager()->flush();
+        $this->holds()->blockPaymentEntry($order);
+
+        $this->client->request('GET', (string) parse_url($token->getTargetUrl(), \PHP_URL_PATH));
+
+        self::assertResponseRedirects('/fr_FR/order/thank-you');
     }
 
     private function login(CustomerInterface $customer): void

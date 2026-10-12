@@ -33,8 +33,8 @@ use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodEligibilityCheckerI
  * - Blocked order: redirect to the thank-you page (like a paid offline order) with a flash.
  * - Payment method refused since it was chosen (or copied from a failed payment), payment not
  *   started yet: redirect to the order page, whose form only offers eligible methods.
- * - Gateway returns (Payum route of a payment already processing, or with gateway details) and
- *   notifications are never intercepted.
+ * - Payum routes: only payments still `new` are intercepted (a blocked order wins, even with
+ *   gateway details); payments the gateway is handling and notifications always pass.
  */
 final class PaymentEntryBlockingListener
 {
@@ -138,9 +138,10 @@ final class PaymentEntryBlockingListener
         if (in_array($route, self::PAYUM_ROUTES, true) && null !== $this->payum) {
             $payment = $this->payumPayment($request);
             // The capture / authorize URL is also the gateway's browser return URL (offsite
-            // gateways): only the first entry is intercepted, never the return of a payment the
-            // gateway already started (state other than new, or gateway details stored).
-            if (!$payment instanceof PaymentInterface || PaymentInterface::STATE_NEW !== $payment->getState() || [] !== $payment->getDetails()) {
+            // gateways). The block wins while the payment is still `new`, even when the gateway
+            // already stored details (a token reopened after the block); a payment the gateway is
+            // handling (processing, authorized, completed...) always passes.
+            if (!$payment instanceof PaymentInterface || PaymentInterface::STATE_NEW !== $payment->getState()) {
                 return [null, null, null];
             }
 
@@ -181,7 +182,7 @@ final class PaymentEntryBlockingListener
 
     /**
      * The locale of the request when the channel offers it (Payum routes have none), else the
-     * channel default locale, else the order locale.
+     * order locale when the channel offers it, else the channel default locale.
      *
      * @return array<string, string>
      */
@@ -195,6 +196,7 @@ final class PaymentEntryBlockingListener
 
         $localeCode = match (true) {
             is_string($requestLocale) && in_array($requestLocale, $channelLocales, true) => $requestLocale,
+            null !== $order->getLocaleCode() && in_array($order->getLocaleCode(), $channelLocales, true) => $order->getLocaleCode(),
             $channel instanceof ChannelInterface && null !== $channel->getDefaultLocale()?->getCode() => $channel->getDefaultLocale()->getCode(),
             [] === $channelLocales => $order->getLocaleCode(),
             default => null,
