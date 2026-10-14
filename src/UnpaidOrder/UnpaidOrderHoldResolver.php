@@ -6,10 +6,10 @@ namespace Tmonier\SyliusOrderHoldPlugin\UnpaidOrder;
 
 use Sylius\Component\Core\Model\OrderInterface;
 
-final class UnpaidOrderHoldResolver implements UnpaidOrderHoldResolverInterface
+final readonly class UnpaidOrderHoldResolver implements UnpaidOrderHoldResolverInterface
 {
     /** @param iterable<UnpaidOrderCancellationExclusionInterface> $exclusions */
-    public function __construct(private readonly iterable $exclusions)
+    public function __construct(private iterable $exclusions)
     {
     }
 
@@ -35,12 +35,12 @@ final class UnpaidOrderHoldResolver implements UnpaidOrderHoldResolverInterface
     public function isExpired(OrderInterface $order, \DateTimeInterface $terminalDate): bool
     {
         $hold = $this->resolve($order);
-        if (null === $hold) {
+        if (!$hold instanceof \Tmonier\SyliusOrderHoldPlugin\UnpaidOrder\UnpaidOrderHold) {
             return true;
         }
 
         $expirationStart = $hold->getExpirationStart();
 
-        return null !== $expirationStart && $expirationStart < $terminalDate;
+        return $expirationStart instanceof \DateTimeImmutable && $expirationStart < $terminalDate;
     }
 }

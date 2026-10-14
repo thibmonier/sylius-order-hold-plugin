@@ -15,12 +15,12 @@ use Sylius\Component\Payment\Resolver\PaymentMethodsResolverInterface;
  * the channel without going through the payment methods resolver: when that method is refused,
  * the first method offered by the (filtered) payment methods resolver is used instead.
  */
-final class EligibleDefaultPaymentMethodResolver implements DefaultPaymentMethodResolverInterface
+final readonly class EligibleDefaultPaymentMethodResolver implements DefaultPaymentMethodResolverInterface
 {
     public function __construct(
-        private readonly DefaultPaymentMethodResolverInterface $decorated,
-        private readonly PaymentMethodsResolverInterface $paymentMethodsResolver,
-        private readonly PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
+        private DefaultPaymentMethodResolverInterface $decorated,
+        private PaymentMethodsResolverInterface $paymentMethodsResolver,
+        private PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
     ) {
     }
 
@@ -28,13 +28,13 @@ final class EligibleDefaultPaymentMethodResolver implements DefaultPaymentMethod
     public function getDefaultPaymentMethod(PaymentInterface $payment): PaymentMethodInterface
     {
         $default = $this->decorated->getDefaultPaymentMethod($payment);
-        if (null === $this->eligibilityChecker->getIneligibility($default, $payment)) {
+        if (!$this->eligibilityChecker->getIneligibility($default, $payment) instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodIneligibility) {
             return $default;
         }
 
         if ($this->paymentMethodsResolver->supports($payment)) {
             foreach ($this->paymentMethodsResolver->getSupportedMethods($payment) as $paymentMethod) {
-                if (null === $this->eligibilityChecker->getIneligibility($paymentMethod, $payment)) {
+                if (!$this->eligibilityChecker->getIneligibility($paymentMethod, $payment) instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodIneligibility) {
                     return $paymentMethod;
                 }
             }

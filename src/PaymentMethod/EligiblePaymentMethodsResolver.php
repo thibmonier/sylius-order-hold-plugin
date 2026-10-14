@@ -9,11 +9,11 @@ use Sylius\Component\Payment\Model\PaymentMethodInterface;
 use Sylius\Component\Payment\Resolver\PaymentMethodsResolverInterface;
 
 /** Decorates the composite `sylius.resolver.payment_methods`: removes the refused methods. */
-final class EligiblePaymentMethodsResolver implements PaymentMethodsResolverInterface
+final readonly class EligiblePaymentMethodsResolver implements PaymentMethodsResolverInterface
 {
     public function __construct(
-        private readonly PaymentMethodsResolverInterface $decorated,
-        private readonly PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
+        private PaymentMethodsResolverInterface $decorated,
+        private PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
     ) {
     }
 
@@ -22,7 +22,7 @@ final class EligiblePaymentMethodsResolver implements PaymentMethodsResolverInte
     {
         return array_values(array_filter(
             $this->decorated->getSupportedMethods($subject),
-            fn (PaymentMethodInterface $paymentMethod): bool => null === $this->eligibilityChecker->getIneligibility($paymentMethod, $subject),
+            fn (PaymentMethodInterface $paymentMethod): bool => !$this->eligibilityChecker->getIneligibility($paymentMethod, $subject) instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodIneligibility,
         ));
     }
 

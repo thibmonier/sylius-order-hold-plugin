@@ -208,7 +208,7 @@ final class ShopOrderHoldTest extends WebTestCase
         $this->client->request('GET', (string) parse_url($token->getTargetUrl(), \PHP_URL_PATH));
 
         $location = (string) $this->client->getResponse()->headers->get('Location');
-        self::assertStringNotContainsString('/order/' . (string) $order->getTokenValue(), $location);
+        self::assertStringNotContainsString('/order/' . $order->getTokenValue(), $location);
         self::assertStringNotContainsString('/order/thank-you', $location);
     }
 

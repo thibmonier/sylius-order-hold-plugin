@@ -45,7 +45,7 @@ final class PaymentEntryAllowedValidator extends ConstraintValidator
         }
 
         $block = $this->paymentEntryBlocker->getBlock($order);
-        if (null !== $block) {
+        if ($block instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentEntry\PaymentEntryBlock) {
             $this->context->buildViolation($block->getMessage(), $block->getParameters())->addViolation();
         }
     }

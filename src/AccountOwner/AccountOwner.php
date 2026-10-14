@@ -8,14 +8,14 @@ namespace Tmonier\SyliusOrderHoldPlugin\AccountOwner;
  * Who an order or a customer is accountable to (credit line, approval rules): the customer
  * itself by default, a company when a company plugin decorates the resolver.
  */
-final class AccountOwner
+final readonly class AccountOwner
 {
     public const TYPE_CUSTOMER = 'customer';
 
     public function __construct(
-        private readonly string $type,
-        private readonly string $identifier,
-        private readonly object $subject,
+        private string $type,
+        private string $identifier,
+        private object $subject,
     ) {
     }
 
