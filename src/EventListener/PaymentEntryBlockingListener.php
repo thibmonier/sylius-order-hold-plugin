@@ -36,7 +36,7 @@ use Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodEligibilityCheckerI
  * - Payum routes: only payments still `new` are intercepted (a blocked order wins, even with
  *   gateway details); payments the gateway is handling and notifications always pass.
  */
-final class PaymentEntryBlockingListener
+final readonly class PaymentEntryBlockingListener
 {
     public const ORDER_PAY_ROUTE = 'sylius_shop_order_pay';
 
@@ -51,12 +51,12 @@ final class PaymentEntryBlockingListener
      * @param PaymentRequestRepositoryInterface<PaymentRequestInterface> $paymentRequestRepository
      */
     public function __construct(
-        private readonly OrderRepositoryInterface $orderRepository,
-        private readonly PaymentRequestRepositoryInterface $paymentRequestRepository,
-        private readonly PaymentEntryBlockerInterface $paymentEntryBlocker,
-        private readonly PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
-        private readonly UrlGeneratorInterface $urlGenerator,
-        private readonly ?Payum $payum = null,
+        private OrderRepositoryInterface $orderRepository,
+        private PaymentRequestRepositoryInterface $paymentRequestRepository,
+        private PaymentEntryBlockerInterface $paymentEntryBlocker,
+        private PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
+        private UrlGeneratorInterface $urlGenerator,
+        private ?Payum $payum = null,
     ) {
     }
 
@@ -73,7 +73,7 @@ final class PaymentEntryBlockingListener
         }
 
         $block = $this->paymentEntryBlocker->getBlock($order);
-        if (null !== $block) {
+        if ($block instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentEntry\PaymentEntryBlock) {
             if ($request->hasSession()) {
                 $session = $request->getSession();
                 // Read by the thank-you page, as the pay action does.
@@ -95,7 +95,7 @@ final class PaymentEntryBlockingListener
             !$payment instanceof PaymentInterface ||
             PaymentInterface::STATE_NEW !== $payment->getState() ||
             !$paymentMethod instanceof PaymentMethodInterface ||
-            null === $this->eligibilityChecker->getIneligibility($paymentMethod, $payment)
+            !$this->eligibilityChecker->getIneligibility($paymentMethod, $payment) instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodIneligibility
         ) {
             return;
         }
@@ -135,7 +135,7 @@ final class PaymentEntryBlockingListener
             return $payment instanceof PaymentInterface ? [$payment->getOrder(), $payment, $paymentRequest->getMethod()] : [null, null, null];
         }
 
-        if (in_array($route, self::PAYUM_ROUTES, true) && null !== $this->payum) {
+        if (in_array($route, self::PAYUM_ROUTES, true) && $this->payum instanceof \Payum\Core\Payum) {
             $payment = $this->payumPayment($request);
             // The capture / authorize URL is also the gateway's browser return URL (offsite
             // gateways). The block wins while the payment is still `new`, even when the gateway
@@ -158,7 +158,7 @@ final class PaymentEntryBlockingListener
         if (null === $hash && $request->hasSession()) {
             $hash = $request->getSession()->get('payum_token');
         }
-        if (!is_string($hash) || '' === $hash || null === $this->payum) {
+        if (!is_string($hash) || '' === $hash || !$this->payum instanceof \Payum\Core\Payum) {
             return null;
         }
 

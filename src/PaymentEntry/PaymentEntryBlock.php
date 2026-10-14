@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tmonier\SyliusOrderHoldPlugin\PaymentEntry;
 
 /** Why the customer cannot start paying an order (yet). */
-final class PaymentEntryBlock
+final readonly class PaymentEntryBlock
 {
     public const DEFAULT_MESSAGE = 'tmonier_order_hold.payment_entry.blocked';
 
@@ -14,8 +14,8 @@ final class PaymentEntryBlock
      * @param array<string, string|int|float> $parameters
      */
     public function __construct(
-        private readonly string $message = self::DEFAULT_MESSAGE,
-        private readonly array $parameters = [],
+        private string $message = self::DEFAULT_MESSAGE,
+        private array $parameters = [],
     ) {
     }
 

@@ -7,10 +7,10 @@ namespace Tmonier\SyliusOrderHoldPlugin\PaymentEntry;
 use Sylius\Component\Core\Model\OrderInterface;
 
 /** Asks every tagged blocker; the first block wins. */
-final class CompositePaymentEntryBlocker implements PaymentEntryBlockerInterface
+final readonly class CompositePaymentEntryBlocker implements PaymentEntryBlockerInterface
 {
     /** @param iterable<PaymentEntryBlockerInterface> $blockers */
-    public function __construct(private readonly iterable $blockers)
+    public function __construct(private iterable $blockers)
     {
     }
 

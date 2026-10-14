@@ -206,7 +206,7 @@ final class HoldAwareUnpaidOrdersStateUpdater implements UnpaidOrdersStateUpdate
 
     private function resetEntityManager(\Throwable $exception): void
     {
-        if (null === $this->managerRegistry) {
+        if (!$this->managerRegistry instanceof \Doctrine\Persistence\ManagerRegistry) {
             throw $exception;
         }
 

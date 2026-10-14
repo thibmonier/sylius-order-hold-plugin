@@ -9,11 +9,11 @@ namespace Tmonier\SyliusOrderHoldPlugin\UnpaidOrder;
  * approval) or because its expiration period runs from a later date than checkout completion
  * (e.g. the approval date).
  */
-final class UnpaidOrderHold
+final readonly class UnpaidOrderHold
 {
     private function __construct(
-        private readonly ?\DateTimeImmutable $expirationStart,
-        private readonly string $source,
+        private ?\DateTimeImmutable $expirationStart,
+        private string $source,
     ) {
     }
 
@@ -31,7 +31,7 @@ final class UnpaidOrderHold
 
     public function isIndefinite(): bool
     {
-        return null === $this->expirationStart;
+        return !$this->expirationStart instanceof \DateTimeImmutable;
     }
 
     public function getExpirationStart(): ?\DateTimeImmutable

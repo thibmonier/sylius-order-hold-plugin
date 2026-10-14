@@ -18,12 +18,12 @@ use Sylius\Component\Payment\Resolver\DefaultPaymentMethodResolverInterface;
  * method is eligible, the copied one is kept and the pay routes send the customer to the order
  * page.
  */
-final class EligibleOrderPaymentProvider implements OrderPaymentProviderInterface
+final readonly class EligibleOrderPaymentProvider implements OrderPaymentProviderInterface
 {
     public function __construct(
-        private readonly OrderPaymentProviderInterface $decorated,
-        private readonly DefaultPaymentMethodResolverInterface $defaultPaymentMethodResolver,
-        private readonly PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
+        private OrderPaymentProviderInterface $decorated,
+        private DefaultPaymentMethodResolverInterface $defaultPaymentMethodResolver,
+        private PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
     ) {
     }
 
@@ -34,7 +34,7 @@ final class EligibleOrderPaymentProvider implements OrderPaymentProviderInterfac
         if (
             !$payment instanceof PaymentInterface ||
             !$paymentMethod instanceof PaymentMethodInterface ||
-            null === $this->eligibilityChecker->getIneligibility($paymentMethod, $payment)
+            !$this->eligibilityChecker->getIneligibility($paymentMethod, $payment) instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodIneligibility
         ) {
             return $payment;
         }

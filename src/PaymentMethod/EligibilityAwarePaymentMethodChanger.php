@@ -17,17 +17,17 @@ use Sylius\Component\Core\Repository\PaymentRepositoryInterface;
  * order, shop API). The core changer checks the payment methods resolver only when it is
  * injected; this decorator refuses ineligible methods whatever the wiring.
  */
-final class EligibilityAwarePaymentMethodChanger implements PaymentMethodChangerInterface
+final readonly class EligibilityAwarePaymentMethodChanger implements PaymentMethodChangerInterface
 {
     /**
      * @param PaymentRepositoryInterface<PaymentInterface> $paymentRepository
      * @param PaymentMethodRepositoryInterface<PaymentMethodInterface> $paymentMethodRepository
      */
     public function __construct(
-        private readonly PaymentMethodChangerInterface $decorated,
-        private readonly PaymentRepositoryInterface $paymentRepository,
-        private readonly PaymentMethodRepositoryInterface $paymentMethodRepository,
-        private readonly PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
+        private PaymentMethodChangerInterface $decorated,
+        private PaymentRepositoryInterface $paymentRepository,
+        private PaymentMethodRepositoryInterface $paymentMethodRepository,
+        private PaymentMethodEligibilityCheckerInterface $eligibilityChecker,
     ) {
     }
 
@@ -39,7 +39,7 @@ final class EligibilityAwarePaymentMethodChanger implements PaymentMethodChanger
         if (
             $paymentMethod instanceof PaymentMethodInterface &&
             $payment instanceof PaymentInterface &&
-            null !== $this->eligibilityChecker->getIneligibility($paymentMethod, $payment)
+            $this->eligibilityChecker->getIneligibility($paymentMethod, $payment) instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodIneligibility
         ) {
             throw new PaymentMethodCannotBeChangedException();
         }

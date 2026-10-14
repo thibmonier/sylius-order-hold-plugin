@@ -53,7 +53,7 @@ final class EligiblePaymentRequestMethodValidator extends ConstraintValidator
         }
 
         $ineligibility = $this->eligibilityChecker->getIneligibility($paymentMethod, $payment);
-        if (null !== $ineligibility) {
+        if ($ineligibility instanceof \Tmonier\SyliusOrderHoldPlugin\PaymentMethod\PaymentMethodIneligibility) {
             $this->context
                 ->buildViolation($ineligibility->getMessage(), ['%paymentMethodName%' => (string) $paymentMethod->getName()] + $ineligibility->getParameters())
                 ->setCode($ineligibility->getReason()->value)
